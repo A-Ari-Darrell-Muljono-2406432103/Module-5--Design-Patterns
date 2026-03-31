@@ -77,7 +77,45 @@ This is the place for you to write reflections:
 ### Mandatory (Publisher) Reflections
 
 #### Reflection Publisher-1
+##### Mengapa tidak menggunakan Interface (Trait) untuk Subscriber di kasus ini?
+    Interface (atau Trait di Rust) digunakan untuk mendefinisikan behavior (perilaku/fungsi) yang bisa diimplementasikan secara berbeda-beda oleh berbagai objek. Struct digunakan untuk mendefinisikan bentuk data.
+
+    Dalam sistem BambangShop ini, entitas `Subscriber` hanyalah sebuah struktur data pasif yang menyimpan `url` dan `name` . Tidak ada berbagai jenis pelanggan dengan cara pemrosesan yang kompleks secara internal. Semua pelanggan dikirimi payload JSON yang sama melalui HTTP POST request standar .
+
+##### Mengapa DashMap (Dictionary) lebih baik daripada Vec (List) untuk menyimpan Subscriber?
+    `Vec` adalah array. Waktu pencariannya berbanding lurus dengan jumlah data ($O(n)$). `DashMap` adalah hash map. Waktu pencarian dan aksesnya instan ($O(1)$).
+
+    Identitas pelanggan dalam sistem ini bersifat unik, yang direpresentasikan oleh `url` . Jika menggunakan `Vec`, setiap kali sistem ingin menghapus (unsubscribe) pelanggan, program harus menelusuri daftar dari awal sampai menemukan URL yang cocok.
+##### Apakah bisa menggunakan pola Singleton tradisional alih-alih DashMap?
+    Singleton membatasi pembuatan objek hanya satu instance.
+    Di bahasa Rust, penggabungan makro `lazy_static!` dan tipe data DashMap merupakan salah satu cara mengimplementasikan pola Singleton yang thread-safe. Rust sangat ketat soal kepemilikan memori dan mencegah data race (balapan modifikasi data antar thread) saat compile time.
 
 #### Reflection Publisher-2
+##### Mengapa "Service" dan "Repository" harus dipisah dari Model?
+    Memisahkan antara `Service` dan `Repository` merupakan salah satu prinsip dari SIngle Responsibility Principle (SRP). Setiap class/file yang ada hanya boleh menjalankan 1 kegunaan.
+    MVC (Model-View-Controller) tradisional sering menghasilkan "Fat Model" (Model yang obesitas). Dengan memisahkan `Repository`, sistem hanya bertanggung jawab melakukan operasi ke database (CRUD). `Service` pun juga seperti itu, stsem hanya mengurus logika bisnis seperti mengatur payload dan menyuruh thread mengirim notifikasi. Model hanya bertugas mendefinisikan bentuk tipe data.
+
+##### Apa dampaknya jika hanya menggunakan Model tanpa Service/Repository?
+    Akan terjadi tight coupling (keterikatan yang kuat). Model `Product`, `Subscriber`, dan `Notification` akan saling bercampur aduk. Mengubah satu baris di `Notification` bisa merusak struktur logika Product. Kode menjadi spaghetti, sangat sulit dibaca, dan mustahil untuk dilakukan unit testing secara terisolasi.
+
+##### Manfaat Fitur Postman
+    * Dapat menguji API dengan cepat dan mudah
+    * Automated Testing
+    * API Documentation
+    * Mock Server
+    * Environment & Variabel
 
 #### Reflection Publisher-3
+##### Variasi Observer Pattern apa yang digunakan (Push atau Pull)?
+    Disini saya mutlak menggunakan Push Model. Main App (Publisher) yang secara aktif melakukan inisiatif membuat HTTP POST request dan mendorong (pushing) data JSON Notification langsung ke URL milik Receiver. Receiver hanya pasif menunggu pesan masuk.
+
+##### Apa keuntungan dan kerugian jika menggunakan Pull Model?
+    Dalam Pull model, Subscriber yang aktif me-request "Apakah ada data baru?" ke Publisher secara berkala.
+    * Keuntungan: Publisher tidak perlu repot menyimpan daftar URL ribuan Subscriber di memori, dan tidak terbebani secara komputasi untuk mengirim pesan.
+    * Kerugian: Terjadi pemborosan bandwidth jaringan dan CPU yang masif (polling overhead). Subscriber akan terus-menerus menembak API Publisher meskipun tidak ada produk baru. Selain itu, notifikasi tidak bersifat real-time.
+
+##### Apa yang terjadi jika pengiriman notifikasi tidak menggunakan multi-threading?
+    Terjadi antrean Bottleneck fatal. Jika `thread::spawn`  dihapus, sistem akan mengeksekusi pengiriman secara sekuensial. Jika ada 5.000 pelanggan, sistem akan mengirim ke pelanggan ke-1, menunggunya selesai, lalu lanjut ke pelanggan ke-2. Jika server milik pelanggan ke-5 mati dan mengalami timeout selama 30 detik, maka antrean pelanggan ke-6 hingga 5.000 akan terhenti total. Proses API pembuatan produk akan hang dan gagal merespons.
+
+
+
